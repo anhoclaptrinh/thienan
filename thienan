@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Chatbot Thiên Ân</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-900 min-h-screen flex flex-col items-center p-4 transition-colors duration-300" id="main">
+  <h1 class="text-3xl font-bold mb-4">🤖 Chatbot Thiên Ân</h1>
+
+  <div class="w-full max-w-xl flex flex-col md:flex-row justify-between gap-2 mb-4">
+    <select id="topicSelect" class="p-2 rounded-md border border-gray-300">
+      <option value="general">Chung</option>
+      <option value="programming">Lập trình</option>
+      <option value="school">Kiến thức học sinh</option>
+      <option value="funny">Vui vẻ - giải trí</option>
+    </select>
+    <button onclick="toggleTheme()" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md">Đổi giao diện</button>
+  </div>
+
+  <div id="chatbox" class="bg-white w-full max-w-xl h-[500px] overflow-y-scroll rounded-lg p-4 mb-4 space-y-2 shadow-inner"></div>
+
+  <div class="w-full max-w-xl flex">
+    <input id="userInput" type="text" placeholder="Nhập tin nhắn..." class="flex-1 p-3 rounded-l-lg border border-gray-300 focus:outline-none">
+    <button onclick="sendMessage()" class="bg-green-500 hover:bg-green-600 text-white px-4 rounded-r-lg">Gửi</button>
+  </div>
+
+  <script>
+    const chatbox = document.getElementById("chatbox");
+    const userInput = document.getElementById("userInput");
+    const topicSelect = document.getElementById("topicSelect");
+    const main = document.getElementById("main");
+
+    let isDark = false;
+
+    function toggleTheme() {
+      isDark = !isDark;
+      main.className = isDark ? "bg-gray-900 text-white min-h-screen flex flex-col items-center p-4 transition-colors duration-300" : "bg-gray-100 text-gray-900 min-h-screen flex flex-col items-center p-4 transition-colors duration-300";
+      chatbox.className = isDark ? "bg-gray-800 w-full max-w-xl h-[500px] overflow-y-scroll rounded-lg p-4 mb-4 space-y-2" : "bg-white w-full max-w-xl h-[500px] overflow-y-scroll rounded-lg p-4 mb-4 space-y-2 shadow-inner";
+    }
+
+    function appendMessage(sender, text) {
+      const msgDiv = document.createElement("div");
+      msgDiv.className = sender === "user" ? "text-right" : "text-left";
+      msgDiv.innerHTML = `<span class="inline-block px-4 py-2 rounded-lg ${sender === "user" ? 'bg-blue-500 text-white' : 'bg-green-500 text-white'}">${text}</span>`;
+      chatbox.appendChild(msgDiv);
+      chatbox.scrollTop = chatbox.scrollHeight;
+    }
+
+    function saveToHistory(role, content) {
+      const history = JSON.parse(localStorage.getItem("chatHistory") || "[]");
+      history.push({ role, content });
+      localStorage.setItem("chatHistory", JSON.stringify(history));
+    }
+
+    window.onload = () => {
+      const history = JSON.parse(localStorage.getItem("chatHistory") || "[]");
+      history.forEach(item => appendMessage(item.role === "user" ? "user" : "bot", item.content));
+    }
+
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text) return;
+      appendMessage("user", text);
+      saveToHistory("user", text);
+      userInput.value = "";
+
+      appendMessage("bot", "Đang trả lời...");
+
+      const topic = topicSelect.value;
+      let systemPrompt = "Bạn là ChatGPT, một trợ lý AI thông minh, biết tiếng Việt, thân thiện, giúp học sinh học lập trình và tin học trẻ.";
+
+      if (topic === "programming") systemPrompt += " Trả lời như lập trình viên chuyên nghiệp.";
+      else if (topic === "school") systemPrompt += " Trả lời ngắn gọn và chính xác như sách giáo khoa.";
+      else if (topic === "funny") systemPrompt += " Hài hước và thân thiện, trả lời như một người bạn vui tính.";
+
+      try {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer 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"
+          },
+          body: JSON.stringify({
+            model: "gpt-3.5-turbo",
+            temperature: 0.7,
+            max_tokens: 1000,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: text }
+            ]
+          })
+        });
+
+        if (!response.ok) throw new Error("Lỗi khi gọi API");
+        const data = await response.json();
+        const botReply = data.choices?.[0]?.message?.content || "Bot bị lỗi 😅";
+
+        chatbox.removeChild(chatbox.lastChild);
+        appendMessage("bot", botReply);
+        saveToHistory("bot", botReply);
+
+      } catch (error) {
+        chatbox.removeChild(chatbox.lastChild);
+        const errMsg = "Lỗi: " + error.message;
+        appendMessage("bot", errMsg);
+        saveToHistory("bot", errMsg);
+      }
+    }
+
+    userInput.addEventListener("keypress", function (e) {
+      if (e.key === "Enter") sendMessage();
+    });
+  </script>
+</body>
+</html>
